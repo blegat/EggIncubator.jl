@@ -22,7 +22,7 @@ function data(s::Socket)
 end
 
 function powered(s::Socket)
-    body = String(state(S).body)
+    body = String(state(s).body)
     parsed = JSON.parse(body)
     return parsed[POWER]
 end
