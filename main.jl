@@ -35,9 +35,14 @@ function colorT(minT, maxT, T)
 end
 
 function update(minT, maxT, rika, home_wizard; kws...)
-    T = temperature(rika; kws...)
+    Δt = @elapsed begin
+        T, rika = temperature(rika; kws...)
+    end
+    if isnothing(T)
+        return rika
+    end
     color = colorT(minT, maxT, T)
-    printstyled("$(Dates.now()) Current temperature is $(T)°C\n"; color)
+    printstyled("$(Dates.now()) Current temperature is $(T)°C (obtained in $Δt seconds)\n"; color)
     if T < minT
         printstyled("  $(T)°C is colder than $(minT)°C\n"; color)
         enforce_lamp_power(true, home_wizard; color, kws...)
@@ -45,25 +50,18 @@ function update(minT, maxT, rika, home_wizard; kws...)
         printstyled("  $(T)°C is hotter than $(maxT)°C\n"; color)
         enforce_lamp_power(false, home_wizard; color, kws...)
     end
-    return
+    return rika
 end
 
 # The default `readtimeout` is `0` which means there is no timeout.
 # It's a bit dangerous for the egg incubator to be stuck waiting so
 # let's use a timeout of 10 seconds which is the default value for
 # `connect_timeout`.
-function main(minT, maxT, Δt, rika, home_wizard; readtimeout=10)
+function main(minT, maxT, Δt, home_wizard; readtimeout=20)
+    rika = connect(; readtimeout)
     while true
-        try
-            update(minT, maxT, rika, home_wizard; readtimeout)
-        catch err
-            if err isa InterruptException
-                @warn("Interrupted, stopping now")
-            else
-                @warn("Got exception $(typeof(err)), let's hope it goes better next time")
-                Base.showerror(Base.stderr, err)
-                println(Base.stderr)
-            end
+        warn_error() do _
+            rika = update(minT, maxT, rika, home_wizard; readtimeout)
         end
         sleep(Δt)
     end
